@@ -1,9 +1,15 @@
 # VocabLoop
 
-A small full-stack **spaced-repetition vocabulary trainer**. Add words to your
-personal deck, then review them as flashcards — VocabLoop schedules each card
-using an SM-2 style algorithm so you see hard words more often and easy words
-less often.
+A small full-stack **spaced-repetition vocabulary trainer**. Import a TOEIC
+deck (or add words yourself), then review them as flashcards — VocabLoop
+schedules each card using an SM-2 style algorithm so you see hard words more
+often and easy words less often.
+
+The default import is aimed at a **~350 TOEIC score**: `0-400` score band and
+5★ high-frequency words from
+[`kknono668/toeic-vocab-tw`](https://huggingface.co/datasets/kknono668/toeic-vocab-tw)
+(CC BY-SA 4.0). New cards are capped at **15 per day** so a 1,000-word beginner
+deck is not all due on day one.
 
 ## Stack
 
@@ -34,8 +40,10 @@ npm run dev:client   # web on http://localhost:5173
 ```
 
 Open http://localhost:5173. The Vite dev server proxies `/api` requests to the
-Express backend, so you only need to visit the web URL. Click **Load sample
-deck** (or add your own words), then switch to the **Review** tab to study.
+Express backend, so you only need to visit the web URL. Click **匯入 350 分入門卡組**
+(or tighten the score / star / category filters), then switch to **複習** to study.
+The first import downloads the Hugging Face catalog and caches it under
+`server/data/toeic_vocabulary.json`.
 
 Pronunciation uses the browser **Web Speech API**: tap 🔊 next to a term (or
 press `P` while reviewing) to hear it. Shift+P reads the definition after the
@@ -65,6 +73,8 @@ Chinese, Japanese, Korean).
 | GET    | `/api/review/next`  | Next due card (or `null`). Optional `?exclude=:id` skips a just-graded card when another is due. Review payloads include `nextIntervals` for the Again/Hard/Good/Easy buttons. |
 | POST   | `/api/review/:id`   | Grade a card `{grade}` (again/hard/good/easy) |
 | POST   | `/api/seed`         | Load the sample deck (if empty)      |
+| GET    | `/api/import/toeic/preview` | Count matching TOEIC entries (`scoreRange`, `minStar`, `category`) |
+| POST   | `/api/import/toeic` | Import matching TOEIC cards (skips duplicates) |
 
 Duplicate terms are rejected with `409`. Terms are compared case-insensitively.
 

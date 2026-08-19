@@ -3,11 +3,17 @@ export interface Word {
   term: string;
   definition: string;
   example: string;
+  exampleZh: string;
+  category: string;
+  scoreRange: string;
+  starRating: number;
+  examTip: string;
   repetitions: number;
   interval: number;
   ease: number;
   dueAt: number;
   reviews: number;
+  introducedAt: number;
   createdAt: number;
   nextIntervals?: GradeIntervals;
 }
@@ -21,12 +27,45 @@ export interface Stats {
   due: number;
   learned: number;
   reviews: number;
+  newLeft: number;
+  introducedToday: number;
+  newCardsPerDay: number;
+}
+
+export interface ToeicFilters {
+  scoreRange: string;
+  minStar: number | string;
+  category: string;
+  limit?: number | string;
+}
+
+export interface ToeicPreview {
+  source: string;
+  license: string;
+  defaults: { scoreRange: string; minStar: number; category: string };
+  newCardsPerDay: number;
+  catalogSize: number;
+  scoreRanges: string[];
+  categories: string[];
+  filters: ToeicFilters;
+  matched: number;
+  alreadyImported: number;
+  remaining: number;
+}
+
+export interface ToeicImportResult {
+  inserted: number;
+  matched: number;
+  skipped: number;
+  filters: ToeicFilters;
+  newCardsPerDay: number;
 }
 
 export interface WordInput {
   term: string;
   definition: string;
   example?: string;
+  exampleZh?: string;
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -35,6 +74,16 @@ async function json<T>(res: Response): Promise<T> {
     throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+function query(params: object): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === '') continue;
+    search.set(key, String(value));
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : '';
 }
 
 export const api = {
@@ -65,4 +114,12 @@ export const api = {
       body: JSON.stringify({ grade }),
     }).then((r) => json<Word>(r)),
   seed: () => fetch('/api/seed', { method: 'POST' }).then((r) => json<{ inserted: number }>(r)),
+  toeicPreview: (filters: Partial<ToeicFilters> = {}) =>
+    fetch(`/api/import/toeic/preview${query(filters)}`).then((r) => json<ToeicPreview>(r)),
+  importToeic: (filters: Partial<ToeicFilters> = {}) =>
+    fetch('/api/import/toeic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filters),
+    }).then((r) => json<ToeicImportResult>(r)),
 };
