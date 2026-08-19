@@ -175,7 +175,9 @@ label {
   font-weight: 600;
 }
 
-input {
+input,
+textarea,
+select {
   background: var(--bg-soft);
   border: 1px solid var(--border);
   color: var(--text);
@@ -184,10 +186,27 @@ input {
   font-size: 15px;
   outline: none;
   transition: border-color 0.15s;
+  font-family: inherit;
 }
 
-input:focus {
+textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
   border-color: var(--primary);
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+.flashcard:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 button {
@@ -222,6 +241,48 @@ button {
   padding: 8px 14px;
   border-radius: 10px;
   cursor: pointer;
+}
+
+.ghost.compact,
+.primary.compact {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.search {
+  flex: 1;
+  min-width: 160px;
+}
+
+.sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.sort select {
+  padding: 8px 10px;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .muted {
@@ -287,6 +348,12 @@ button {
   white-space: nowrap;
 }
 
+.pill.due {
+  background: rgba(239, 95, 107, 0.18);
+  border-color: var(--again);
+  color: #ffd7db;
+}
+
 .danger {
   background: transparent;
   border: 1px solid var(--border);
@@ -316,6 +383,21 @@ button {
   align-items: center;
 }
 
+.session-bar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.shortcut-hint {
+  font-weight: 400;
+}
+
 .flashcard {
   width: 100%;
   min-height: 260px;
@@ -331,6 +413,11 @@ button {
   padding: 32px;
   cursor: pointer;
   text-align: center;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.flashcard.revealed {
+  border-color: var(--primary);
 }
 
 .flashcard-term {
@@ -369,17 +456,33 @@ button {
 
 .grade {
   border: none;
-  padding: 14px;
+  padding: 12px 10px;
   border-radius: 12px;
   font-size: 15px;
   font-weight: 700;
   color: #0f1220;
   cursor: pointer;
-  transition: transform 0.1s;
+  transition: transform 0.1s, opacity 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
 }
 
 .grade:hover {
   transform: translateY(-2px);
+}
+
+.grade:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+
+.grade-interval {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .grade.again {
@@ -417,5 +520,15 @@ button {
   }
   .grades {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .word {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .word-meta {
+    justify-content: flex-end;
+  }
+  .flashcard-term {
+    font-size: 28px;
   }
 }

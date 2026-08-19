@@ -34,6 +34,7 @@ export function openDb(dbPath) {
       reviews     INTEGER NOT NULL DEFAULT 0,
       created_at  INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_words_due_at ON words(due_at);
   `);
 
   return db;

@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api, type Grade, type Stats, type Word } from './api';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { api, type Grade, type GradeIntervals, type Stats, type Word } from './api';
 
 type Tab = 'library' | 'review';
+type SortKey = 'due' | 'newest' | 'az';
+
+const GRADES: Array<{ id: Grade; label: string; shortcut: string }> = [
+  { id: 'again', label: 'Again', shortcut: '1' },
+  { id: 'hard', label: 'Hard', shortcut: '2' },
+  { id: 'good', label: 'Good', shortcut: '3' },
+  { id: 'easy', label: 'Easy', shortcut: '4' },
+];
 
 export function App() {
   const [tab, setTab] = useState<Tab>('library');
@@ -28,17 +36,29 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo" aria-hidden>🔁</span>
+          <span className="logo" aria-hidden>
+            🔁
+          </span>
           <div>
             <h1>VocabLoop</h1>
             <p className="tagline">Learn vocabulary with spaced repetition</p>
           </div>
         </div>
-        <nav className="tabs">
-          <button className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')}>
+        <nav className="tabs" role="tablist" aria-label="Main">
+          <button
+            role="tab"
+            aria-selected={tab === 'library'}
+            className={tab === 'library' ? 'active' : ''}
+            onClick={() => setTab('library')}
+          >
             Library
           </button>
-          <button className={tab === 'review' ? 'active' : ''} onClick={() => setTab('review')}>
+          <button
+            role="tab"
+            aria-selected={tab === 'review'}
+            className={tab === 'review' ? 'active' : ''}
+            onClick={() => setTab('review')}
+          >
             Review{stats.due > 0 ? <span className="badge">{stats.due}</span> : null}
           </button>
         </nav>
@@ -46,13 +66,17 @@ export function App() {
 
       <StatsBar stats={stats} />
 
-      {error && <div className="error" role="alert">{error}</div>}
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
 
       <main>
         {tab === 'library' ? (
           <Library words={words} onChanged={refresh} setError={setError} />
         ) : (
-          <Review onChanged={refresh} onDone={() => setTab('library')} />
+          <Review due={stats.due} onChanged={refresh} onDone={() => setTab('library')} setError={setError} />
         )}
       </main>
     </div>
@@ -67,7 +91,7 @@ function StatsBar({ stats }: { stats: Stats }) {
     ['Reviews', stats.reviews],
   ];
   return (
-    <section className="stats">
+    <section className="stats" aria-label="Deck stats">
       {items.map(([label, value]) => (
         <div className="stat" key={label}>
           <span className="stat-value">{value}</span>
@@ -91,8 +115,11 @@ function Library({
   const [definition, setDefinition] = useState('');
   const [example, setExample] = useState('');
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('due');
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!term.trim() || !definition.trim()) return;
     setBusy(true);
@@ -110,15 +137,49 @@ function Library({
     }
   };
 
-  const remove = async (id: number) => {
-    await api.deleteWord(id);
-    onChanged();
+  const remove = async (word: Word) => {
+    if (!window.confirm(`Delete “${word.term}”? This cannot be undone.`)) return;
+    try {
+      await api.deleteWord(word.id);
+      setError(null);
+      if (editingId === word.id) setEditingId(null);
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   const seed = async () => {
-    await api.seed();
-    onChanged();
+    setBusy(true);
+    try {
+      await api.seed();
+      setError(null);
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? words.filter(
+          (w) =>
+            w.term.toLowerCase().includes(q) ||
+            w.definition.toLowerCase().includes(q) ||
+            w.example.toLowerCase().includes(q)
+        )
+      : words.slice();
+    filtered.sort((a, b) => {
+      if (sort === 'az') return a.term.localeCompare(b.term);
+      if (sort === 'newest') return b.createdAt - a.createdAt;
+      if (a.dueAt !== b.dueAt) return a.dueAt - b.dueAt;
+      return a.term.localeCompare(b.term);
+    });
+    return filtered;
+  }, [words, query, sort]);
 
   return (
     <div className="library">
@@ -131,23 +192,26 @@ function Library({
             onChange={(e) => setTerm(e.target.value)}
             placeholder="e.g. serendipity"
             required
+            autoComplete="off"
           />
         </label>
         <label>
           Definition
-          <input
+          <textarea
             value={definition}
             onChange={(e) => setDefinition(e.target.value)}
             placeholder="what it means"
             required
+            rows={2}
           />
         </label>
         <label>
           Example <span className="muted">(optional)</span>
-          <input
+          <textarea
             value={example}
             onChange={(e) => setExample(e.target.value)}
             placeholder="use it in a sentence"
+            rows={2}
           />
         </label>
         <button className="primary" type="submit" disabled={busy}>
@@ -159,28 +223,70 @@ function Library({
         <div className="word-list-head">
           <h2>Your words ({words.length})</h2>
           {words.length === 0 && (
-            <button className="ghost" onClick={seed}>
+            <button className="ghost" onClick={seed} disabled={busy}>
               Load sample deck
             </button>
           )}
         </div>
+
+        {words.length > 0 && (
+          <div className="toolbar">
+            <input
+              className="search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search terms, definitions…"
+              aria-label="Search words"
+            />
+            <label className="sort">
+              Sort
+              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort words">
+                <option value="due">Due soonest</option>
+                <option value="newest">Newest</option>
+                <option value="az">A → Z</option>
+              </select>
+            </label>
+          </div>
+        )}
+
         {words.length === 0 ? (
           <p className="empty">No words yet. Add one above or load the sample deck.</p>
+        ) : visible.length === 0 ? (
+          <p className="empty">No words match “{query}”.</p>
         ) : (
           <ul>
-            {words.map((w) => (
+            {visible.map((w) => (
               <li className="card word" key={w.id}>
-                <div className="word-main">
-                  <div className="word-term">{w.term}</div>
-                  <div className="word-def">{w.definition}</div>
-                  {w.example && <div className="word-example">“{w.example}”</div>}
-                </div>
-                <div className="word-meta">
-                  <span className="pill">{dueLabel(w.dueAt)}</span>
-                  <button className="danger" aria-label={`Delete ${w.term}`} onClick={() => remove(w.id)}>
-                    ✕
-                  </button>
-                </div>
+                {editingId === w.id ? (
+                  <EditWord
+                    word={w}
+                    onCancel={() => setEditingId(null)}
+                    onSaved={() => {
+                      setEditingId(null);
+                      setError(null);
+                      onChanged();
+                    }}
+                    onError={setError}
+                  />
+                ) : (
+                  <>
+                    <div className="word-main">
+                      <div className="word-term">{w.term}</div>
+                      <div className="word-def">{w.definition}</div>
+                      {w.example && <div className="word-example">“{w.example}”</div>}
+                    </div>
+                    <div className="word-meta">
+                      <span className={`pill${w.dueAt <= Date.now() ? ' due' : ''}`}>{dueLabel(w.dueAt)}</span>
+                      <button className="ghost compact" onClick={() => setEditingId(w.id)}>
+                        Edit
+                      </button>
+                      <button className="danger" aria-label={`Delete ${w.term}`} onClick={() => remove(w)}>
+                        ✕
+                      </button>
+                    </div>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -190,38 +296,162 @@ function Library({
   );
 }
 
-function Review({ onChanged, onDone }: { onChanged: () => void; onDone: () => void }) {
+function EditWord({
+  word,
+  onCancel,
+  onSaved,
+  onError,
+}: {
+  word: Word;
+  onCancel: () => void;
+  onSaved: () => void;
+  onError: (m: string | null) => void;
+}) {
+  const [term, setTerm] = useState(word.term);
+  const [definition, setDefinition] = useState(word.definition);
+  const [example, setExample] = useState(word.example);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!term.trim() || !definition.trim()) return;
+    setBusy(true);
+    try {
+      await api.updateWord(word.id, { term, definition, example });
+      onSaved();
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="edit-form" onSubmit={save}>
+      <input value={term} onChange={(e) => setTerm(e.target.value)} aria-label="Term" required />
+      <textarea
+        value={definition}
+        onChange={(e) => setDefinition(e.target.value)}
+        aria-label="Definition"
+        rows={2}
+        required
+      />
+      <textarea
+        value={example}
+        onChange={(e) => setExample(e.target.value)}
+        aria-label="Example"
+        rows={2}
+        placeholder="Example (optional)"
+      />
+      <div className="edit-actions">
+        <button className="primary compact" type="submit" disabled={busy}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        <button className="ghost compact" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function Review({
+  due,
+  onChanged,
+  onDone,
+  setError,
+}: {
+  due: number;
+  onChanged: () => void;
+  onDone: () => void;
+  setError: (m: string | null) => void;
+}) {
   const [card, setCard] = useState<Word | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [grading, setGrading] = useState(false);
+  const [sessionReviews, setSessionReviews] = useState(0);
+  const gradingLock = useRef(false);
 
-  const loadNext = useCallback(async () => {
-    setLoading(true);
-    const next = await api.nextReview();
-    setCard(next);
-    setRevealed(false);
-    setLoading(false);
-  }, []);
+  const loadNext = useCallback(
+    async (exclude?: number) => {
+      setLoading(true);
+      try {
+        const next = await api.nextReview(exclude);
+        setCard(next);
+        setRevealed(false);
+        setError(null);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setError]
+  );
 
   useEffect(() => {
     loadNext();
   }, [loadNext]);
 
-  const grade = async (g: Grade) => {
-    if (!card) return;
-    await api.grade(card.id, g);
-    onChanged();
-    await loadNext();
-  };
+  const grade = useCallback(
+    async (g: Grade) => {
+      if (!card || gradingLock.current) return;
+      gradingLock.current = true;
+      setGrading(true);
+      try {
+        await api.grade(card.id, g);
+        setSessionReviews((n) => n + 1);
+        setError(null);
+        onChanged();
+        await loadNext(card.id);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        gradingLock.current = false;
+        setGrading(false);
+      }
+    },
+    [card, loadNext, onChanged, setError]
+  );
 
-  if (loading) return <div className="card review-empty">Loading…</div>;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+        return;
+      }
+      if (!card || loading || grading) return;
+      if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
+        e.preventDefault();
+        setRevealed(true);
+        return;
+      }
+      if (!revealed) return;
+      const hit = GRADES.find((item) => item.shortcut === e.key);
+      if (hit) {
+        e.preventDefault();
+        void grade(hit.id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [card, loading, grading, revealed, grade]);
+
+  if (loading && !card) return <div className="card review-empty">Loading…</div>;
 
   if (!card) {
     return (
       <div className="card review-empty">
-        <div className="review-emoji" aria-hidden>🎉</div>
+        <div className="review-emoji" aria-hidden>
+          🎉
+        </div>
         <h2>All caught up!</h2>
-        <p>You have no cards due for review right now.</p>
+        <p>
+          {sessionReviews > 0
+            ? `You reviewed ${sessionReviews} card${sessionReviews === 1 ? '' : 's'} this session.`
+            : 'You have no cards due for review right now.'}
+        </p>
         <button className="primary" onClick={onDone}>
           Back to library
         </button>
@@ -229,9 +459,30 @@ function Review({ onChanged, onDone }: { onChanged: () => void; onDone: () => vo
     );
   }
 
+  const remaining = Math.max(due, 1);
+
   return (
     <div className="review">
-      <div className={`flashcard ${revealed ? 'revealed' : ''}`} onClick={() => setRevealed(true)}>
+      <div className="session-bar" aria-live="polite">
+        <span>
+          {remaining} due · {sessionReviews} reviewed this session
+        </span>
+        <span className="muted shortcut-hint">Space to reveal · 1–4 to grade</span>
+      </div>
+
+      <div
+        className={`flashcard ${revealed ? 'revealed' : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-label={revealed ? `Definition of ${card.term}` : `Term ${card.term}. Activate to reveal the definition.`}
+        onClick={() => setRevealed(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setRevealed(true);
+          }
+        }}
+      >
         <div className="flashcard-term">{card.term}</div>
         {revealed ? (
           <div className="flashcard-back">
@@ -245,18 +496,18 @@ function Review({ onChanged, onDone }: { onChanged: () => void; onDone: () => vo
 
       {revealed ? (
         <div className="grades">
-          <button className="grade again" onClick={() => grade('again')}>
-            Again
-          </button>
-          <button className="grade hard" onClick={() => grade('hard')}>
-            Hard
-          </button>
-          <button className="grade good" onClick={() => grade('good')}>
-            Good
-          </button>
-          <button className="grade easy" onClick={() => grade('easy')}>
-            Easy
-          </button>
+          {GRADES.map((g) => (
+            <button
+              key={g.id}
+              className={`grade ${g.id}`}
+              onClick={() => grade(g.id)}
+              disabled={grading}
+              title={`${g.label} (${g.shortcut})`}
+            >
+              <span className="grade-label">{g.label}</span>
+              <span className="grade-interval">{intervalLabel(card.nextIntervals, g.id)}</span>
+            </button>
+          ))}
         </div>
       ) : (
         <button className="primary reveal-btn" onClick={() => setRevealed(true)}>
@@ -270,8 +521,19 @@ function Review({ onChanged, onDone }: { onChanged: () => void; onDone: () => vo
 function dueLabel(dueAt: number): string {
   const diff = dueAt - Date.now();
   if (diff <= 0) return 'Due now';
+  const minutes = Math.round(diff / (60 * 1000));
+  if (minutes < 60) return minutes <= 1 ? 'Due in 1 min' : `Due in ${minutes} min`;
+  const hours = Math.round(diff / (60 * 60 * 1000));
+  if (hours < 24) return hours === 1 ? 'Due in 1 hour' : `Due in ${hours} hours`;
   const days = Math.round(diff / (24 * 60 * 60 * 1000));
-  if (days <= 0) return 'Due today';
   if (days === 1) return 'Due in 1 day';
   return `Due in ${days} days`;
+}
+
+function intervalLabel(intervals: GradeIntervals | undefined, grade: Grade): string {
+  const days = intervals?.[grade];
+  if (days == null) return '';
+  if (days <= 0) return 'soon';
+  if (days === 1) return '1 day';
+  return `${days} days`;
 }

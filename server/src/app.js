@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { openDb, rowToWord } from './db.js';
-import { schedule, GRADES } from './srs.js';
+import { schedule, previewIntervals, GRADES } from './srs.js';
 
 const SAMPLE_WORDS = [
   { term: 'ephemeral', definition: 'Lasting for a very short time.', example: 'Fashions are ephemeral.' },
@@ -22,11 +22,22 @@ export function createApp(db = openDb()) {
 
   app.get('/api/stats', (_req, res) => {
     const now = Date.now();
-    const total = db.prepare('SELECT COUNT(*) AS c FROM words').get().c;
-    const due = db.prepare('SELECT COUNT(*) AS c FROM words WHERE due_at <= ?').get(now).c;
-    const learned = db.prepare('SELECT COUNT(*) AS c FROM words WHERE repetitions >= 3').get().c;
-    const reviews = db.prepare('SELECT COALESCE(SUM(reviews), 0) AS c FROM words').get().c;
-    res.json({ total, due, learned, reviews });
+    const row = db
+      .prepare(
+        `SELECT
+           COUNT(*) AS total,
+           COALESCE(SUM(CASE WHEN due_at <= ? THEN 1 ELSE 0 END), 0) AS due,
+           COALESCE(SUM(CASE WHEN repetitions >= 3 THEN 1 ELSE 0 END), 0) AS learned,
+           COALESCE(SUM(reviews), 0) AS reviews
+         FROM words`
+      )
+      .get(now);
+    res.json({
+      total: row.total,
+      due: row.due,
+      learned: row.learned,
+      reviews: row.reviews,
+    });
   });
 
   app.get('/api/words', (_req, res) => {
@@ -39,13 +50,18 @@ export function createApp(db = openDb()) {
     if (!term || !term.trim() || !definition || !definition.trim()) {
       return res.status(400).json({ error: 'term and definition are required' });
     }
+    const trimmedTerm = term.trim();
+    const dup = db.prepare('SELECT id FROM words WHERE LOWER(term) = LOWER(?)').get(trimmedTerm);
+    if (dup) {
+      return res.status(409).json({ error: 'that term is already in your deck' });
+    }
     const now = Date.now();
     const info = db
       .prepare(
         `INSERT INTO words (term, definition, example, due_at, created_at)
          VALUES (?, ?, ?, ?, ?)`
       )
-      .run(term.trim(), definition.trim(), (example ?? '').trim(), now, now);
+      .run(trimmedTerm, definition.trim(), (example ?? '').trim(), now, now);
     const row = db.prepare('SELECT * FROM words WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json(rowToWord(row));
   });
@@ -55,14 +71,20 @@ export function createApp(db = openDb()) {
     const existing = db.prepare('SELECT * FROM words WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'not found' });
     const { term, definition, example } = req.body ?? {};
+    const nextTerm = (term ?? existing.term).trim();
+    const nextDefinition = (definition ?? existing.definition).trim();
+    if (!nextTerm || !nextDefinition) {
+      return res.status(400).json({ error: 'term and definition are required' });
+    }
+    const dup = db
+      .prepare('SELECT id FROM words WHERE LOWER(term) = LOWER(?) AND id != ?')
+      .get(nextTerm, id);
+    if (dup) {
+      return res.status(409).json({ error: 'that term is already in your deck' });
+    }
     db.prepare(
       `UPDATE words SET term = ?, definition = ?, example = ? WHERE id = ?`
-    ).run(
-      (term ?? existing.term).trim(),
-      (definition ?? existing.definition).trim(),
-      (example ?? existing.example ?? '').trim(),
-      id
-    );
+    ).run(nextTerm, nextDefinition, (example ?? existing.example ?? '').trim(), id);
     const row = db.prepare('SELECT * FROM words WHERE id = ?').get(id);
     res.json(rowToWord(row));
   });
@@ -75,12 +97,24 @@ export function createApp(db = openDb()) {
   });
 
   // Next card that is due for review (most overdue first).
-  app.get('/api/review/next', (_req, res) => {
+  // Optional ?exclude=:id skips a just-graded card when another due card exists,
+  // so "Again" does not immediately loop the same word in a multi-card session.
+  app.get('/api/review/next', (req, res) => {
     const now = Date.now();
-    const row = db
-      .prepare('SELECT * FROM words WHERE due_at <= ? ORDER BY due_at ASC LIMIT 1')
-      .get(now);
-    res.json(rowToWord(row));
+    const exclude = Number(req.query.exclude);
+    const order = 'ORDER BY due_at ASC, id ASC LIMIT 1';
+    let row;
+    if (Number.isInteger(exclude) && exclude > 0) {
+      row = db
+        .prepare(`SELECT * FROM words WHERE due_at <= ? AND id != ? ${order}`)
+        .get(now, exclude);
+      if (!row) {
+        row = db.prepare(`SELECT * FROM words WHERE due_at <= ? ${order}`).get(now);
+      }
+    } else {
+      row = db.prepare(`SELECT * FROM words WHERE due_at <= ? ${order}`).get(now);
+    }
+    res.json(withPreview(rowToWord(row)));
   });
 
   // Grade a card and reschedule it.
@@ -104,7 +138,7 @@ export function createApp(db = openDb()) {
     ).run(next.repetitions, next.interval, next.ease, next.dueAt, id);
 
     const updated = db.prepare('SELECT * FROM words WHERE id = ?').get(id);
-    res.json(rowToWord(updated));
+    res.json(withPreview(rowToWord(updated)));
   });
 
   // Seed sample vocabulary. Only inserts when the deck is empty.
@@ -125,4 +159,16 @@ export function createApp(db = openDb()) {
   });
 
   return app;
+}
+
+function withPreview(word) {
+  if (!word) return null;
+  return {
+    ...word,
+    nextIntervals: previewIntervals({
+      repetitions: word.repetitions,
+      interval: word.interval,
+      ease: word.ease,
+    }),
+  };
 }

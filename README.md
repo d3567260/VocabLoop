@@ -55,10 +55,13 @@ deck** (or add your own words), then switch to the **Review** tab to study.
 | GET    | `/api/stats`        | Deck stats (total / due / learned)   |
 | GET    | `/api/words`        | List all words                       |
 | POST   | `/api/words`        | Add a word `{term, definition, example?}` |
+| PUT    | `/api/words/:id`    | Edit a word `{term?, definition?, example?}` |
 | DELETE | `/api/words/:id`    | Delete a word                        |
-| GET    | `/api/review/next`  | Next due card (or `null`)            |
+| GET    | `/api/review/next`  | Next due card (or `null`). Optional `?exclude=:id` skips a just-graded card when another is due. Review payloads include `nextIntervals` for the Again/Hard/Good/Easy buttons. |
 | POST   | `/api/review/:id`   | Grade a card `{grade}` (again/hard/good/easy) |
 | POST   | `/api/seed`         | Load the sample deck (if empty)      |
+
+Duplicate terms are rejected with `409`. Terms are compared case-insensitively.
 
 ## Development environment (Cursor Cloud Agents)
 

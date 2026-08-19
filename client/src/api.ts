@@ -9,7 +9,12 @@ export interface Word {
   dueAt: number;
   reviews: number;
   createdAt: number;
+  nextIntervals?: GradeIntervals;
 }
+
+export type Grade = 'again' | 'hard' | 'good' | 'easy';
+
+export type GradeIntervals = Record<Grade, number>;
 
 export interface Stats {
   total: number;
@@ -18,7 +23,11 @@ export interface Stats {
   reviews: number;
 }
 
-export type Grade = 'again' | 'hard' | 'good' | 'easy';
+export interface WordInput {
+  term: string;
+  definition: string;
+  example?: string;
+}
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -31,15 +40,24 @@ async function json<T>(res: Response): Promise<T> {
 export const api = {
   listWords: () => fetch('/api/words').then((r) => json<Word[]>(r)),
   stats: () => fetch('/api/stats').then((r) => json<Stats>(r)),
-  addWord: (input: { term: string; definition: string; example?: string }) =>
+  addWord: (input: WordInput) =>
     fetch('/api/words', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     }).then((r) => json<Word>(r)),
+  updateWord: (id: number, input: WordInput) =>
+    fetch(`/api/words/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }).then((r) => json<Word>(r)),
   deleteWord: (id: number) =>
     fetch(`/api/words/${id}`, { method: 'DELETE' }).then((r) => json<void>(r)),
-  nextReview: () => fetch('/api/review/next').then((r) => json<Word | null>(r)),
+  nextReview: (exclude?: number) => {
+    const q = exclude ? `?exclude=${exclude}` : '';
+    return fetch(`/api/review/next${q}`).then((r) => json<Word | null>(r));
+  },
   grade: (id: number, grade: Grade) =>
     fetch(`/api/review/${id}`, {
       method: 'POST',
