@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { openDb, rowToWord, queueStats, nextReviewRow } from './db.js';
-import { schedule, GRADES } from './srs.js';
+import { schedule, previewIntervals, GRADES } from './srs.js';
 import {
   DEFAULT_FILTERS,
   NEW_CARDS_PER_DAY,
@@ -50,6 +50,18 @@ function insertWord(db, word, now = Date.now()) {
       now,
       now
     );
+}
+
+function withPreview(word) {
+  if (!word) return null;
+  return {
+    ...word,
+    nextIntervals: previewIntervals({
+      repetitions: word.repetitions,
+      interval: word.interval,
+      ease: word.ease,
+    }),
+  };
 }
 
 export function createApp(db = openDb(), options = {}) {
@@ -124,22 +136,34 @@ export function createApp(db = openDb(), options = {}) {
     if (!existing) return res.status(404).json({ error: 'not found' });
     const { term, definition, example, exampleZh, category, scoreRange, starRating, examTip } =
       req.body ?? {};
-    db.prepare(
-      `UPDATE words
-          SET term = ?, definition = ?, example = ?, example_zh = ?, category = ?,
-              score_range = ?, star_rating = ?, exam_tip = ?
-        WHERE id = ?`
-    ).run(
-      (term ?? existing.term).trim(),
-      (definition ?? existing.definition).trim(),
-      (example ?? existing.example ?? '').trim(),
-      (exampleZh ?? existing.example_zh ?? '').trim(),
-      (category ?? existing.category ?? '').trim(),
-      (scoreRange ?? existing.score_range ?? '').trim(),
-      starRating == null ? existing.star_rating : Number(starRating) || 0,
-      (examTip ?? existing.exam_tip ?? '').trim(),
-      id
-    );
+    const nextTerm = (term ?? existing.term).trim();
+    const nextDefinition = (definition ?? existing.definition).trim();
+    if (!nextTerm || !nextDefinition) {
+      return res.status(400).json({ error: 'term and definition are required' });
+    }
+    try {
+      db.prepare(
+        `UPDATE words
+            SET term = ?, definition = ?, example = ?, example_zh = ?, category = ?,
+                score_range = ?, star_rating = ?, exam_tip = ?
+          WHERE id = ?`
+      ).run(
+        nextTerm,
+        nextDefinition,
+        (example ?? existing.example ?? '').trim(),
+        (exampleZh ?? existing.example_zh ?? '').trim(),
+        (category ?? existing.category ?? '').trim(),
+        (scoreRange ?? existing.score_range ?? '').trim(),
+        starRating == null ? existing.star_rating : Number(starRating) || 0,
+        (examTip ?? existing.exam_tip ?? '').trim(),
+        id
+      );
+    } catch (err) {
+      if (String(err.message).includes('UNIQUE')) {
+        return res.status(409).json({ error: 'that word is already in your deck' });
+      }
+      throw err;
+    }
     const row = db.prepare('SELECT * FROM words WHERE id = ?').get(id);
     res.json(rowToWord(row));
   });
@@ -151,9 +175,10 @@ export function createApp(db = openDb(), options = {}) {
     res.status(204).end();
   });
 
-  app.get('/api/review/next', (_req, res) => {
-    const row = nextReviewRow(db, Date.now(), newCardsPerDay);
-    res.json(rowToWord(row));
+  app.get('/api/review/next', (req, res) => {
+    const exclude = Number(req.query.exclude);
+    const row = nextReviewRow(db, Date.now(), newCardsPerDay, exclude);
+    res.json(withPreview(rowToWord(row)));
   });
 
   app.post('/api/review/:id', (req, res) => {
@@ -176,7 +201,7 @@ export function createApp(db = openDb(), options = {}) {
     ).run(next.repetitions, next.interval, next.ease, next.dueAt, id);
 
     const updated = db.prepare('SELECT * FROM words WHERE id = ?').get(id);
-    res.json(rowToWord(updated));
+    res.json(withPreview(rowToWord(updated)));
   });
 
   app.post('/api/seed', (_req, res) => {

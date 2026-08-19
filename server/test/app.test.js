@@ -10,6 +10,10 @@ const fixturePath = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 't
 const catalog = JSON.parse(await readFile(fixturePath, 'utf8'));
 
 async function withServer(options, fn) {
+  if (typeof options === 'function') {
+    fn = options;
+    options = {};
+  }
   const db = openDb(':memory:');
   const app = createApp(db, { loadCatalog: async () => catalog, newCardsPerDay: 2, ...options });
   const server = app.listen(0);
@@ -35,6 +39,99 @@ async function request(port, method, path, body) {
     body: text ? JSON.parse(text) : null,
   };
 }
+
+test('health check', async () => {
+  await withServer({}, async ({ port }) => {
+    const res = await request(port, 'GET', '/api/health');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.service, 'vocabloop');
+  });
+});
+
+test('rejects a word without a definition', async () => {
+  await withServer({}, async ({ port }) => {
+    const res = await request(port, 'POST', '/api/words', { term: 'foo' });
+    assert.equal(res.status, 400);
+  });
+});
+
+test('creates, edits, and rejects duplicate terms', async () => {
+  await withServer({}, async ({ port }) => {
+    const created = await request(port, 'POST', '/api/words', {
+      term: 'serendipity',
+      definition: 'happy chance',
+      example: 'a stroke of serendipity',
+    });
+    assert.equal(created.status, 201);
+
+    const dup = await request(port, 'POST', '/api/words', {
+      term: 'Serendipity',
+      definition: 'again',
+    });
+    assert.equal(dup.status, 409);
+
+    const edited = await request(port, 'PUT', `/api/words/${created.body.id}`, {
+      term: 'serendipity',
+      definition: 'pleasant surprise',
+      example: 'what luck',
+    });
+    assert.equal(edited.status, 200);
+    assert.equal(edited.body.definition, 'pleasant surprise');
+    assert.equal(edited.body.example, 'what luck');
+  });
+});
+
+test('seed loads sample words once, stats and review flow work', async () => {
+  await withServer({ newCardsPerDay: 15 }, async ({ port }) => {
+    const first = await request(port, 'POST', '/api/seed');
+    assert.equal(first.body.inserted, 5);
+
+    const second = await request(port, 'POST', '/api/seed');
+    assert.equal(second.body.inserted, 0);
+
+    const stats = await request(port, 'GET', '/api/stats');
+    assert.equal(stats.body.total, 5);
+    assert.equal(stats.body.due, 5);
+    assert.equal(stats.body.learned, 0);
+
+    const next = await request(port, 'GET', '/api/review/next');
+    assert.ok(next.body.id);
+    assert.equal(next.body.nextIntervals.again, 0);
+    assert.ok(next.body.nextIntervals.easy > next.body.nextIntervals.good);
+
+    const graded = await request(port, 'POST', `/api/review/${next.body.id}`, { grade: 'good' });
+    assert.equal(graded.status, 200);
+
+    const after = await request(port, 'GET', '/api/stats');
+    assert.equal(after.body.due, 4);
+    assert.equal(after.body.reviews, 1);
+  });
+});
+
+test('review next exclude skips a just-graded card when another is due', async () => {
+  await withServer({ newCardsPerDay: 15 }, async ({ port }) => {
+    await request(port, 'POST', '/api/words', { term: 'alpha', definition: 'first' });
+    await request(port, 'POST', '/api/words', { term: 'bravo', definition: 'second' });
+
+    const first = await request(port, 'GET', '/api/review/next');
+    const skipped = await request(port, 'GET', `/api/review/next?exclude=${first.body.id}`);
+    assert.notEqual(skipped.body.id, first.body.id);
+
+    await request(port, 'POST', `/api/review/${first.body.id}`, { grade: 'again' });
+    const afterAgain = await request(port, 'GET', `/api/review/next?exclude=${first.body.id}`);
+    assert.notEqual(afterAgain.body.id, first.body.id);
+  });
+});
+
+test('delete removes a word', async () => {
+  await withServer({}, async ({ port }) => {
+    const created = await request(port, 'POST', '/api/words', { term: 'gone', definition: 'not here' });
+    const del = await request(port, 'DELETE', `/api/words/${created.body.id}`);
+    assert.equal(del.status, 204);
+    const missing = await request(port, 'DELETE', `/api/words/${created.body.id}`);
+    assert.equal(missing.status, 404);
+  });
+});
 
 test('TOEIC preview defaults to the 0-400 five-star beginner deck', async () => {
   await withServer({}, async ({ port }) => {

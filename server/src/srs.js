@@ -52,12 +52,32 @@ export function schedule(card, grade, now = Date.now()) {
     } else {
       intervalDays = Math.round(interval * ease);
     }
-    // "hard" grows more slowly.
+    // "hard" grows more slowly; "easy" jumps further so the two grades feel distinct.
     if (grade === 'hard') {
       intervalDays = Math.max(1, Math.round(intervalDays * 0.6));
+    } else if (grade === 'easy') {
+      intervalDays = Math.max(intervalDays + 1, Math.round(intervalDays * 1.3));
     }
   }
 
   const dueAt = now + intervalDays * DAY_MS;
   return { repetitions, interval: intervalDays, ease: Number(ease.toFixed(3)), dueAt };
+}
+
+/**
+ * Preview the interval (in days) that each grade would produce for a card,
+ * without mutating scheduling state. Used by the review UI so learners can
+ * see the consequence of each button before they tap it.
+ *
+ * @param {{ repetitions: number, interval: number, ease: number }} card
+ * @param {number} [now]
+ * @returns {{ again: number, hard: number, good: number, easy: number }}
+ */
+export function previewIntervals(card, now = Date.now()) {
+  /** @type {{ again: number, hard: number, good: number, easy: number }} */
+  const out = { again: 0, hard: 0, good: 0, easy: 0 };
+  for (const grade of Object.keys(GRADES)) {
+    out[grade] = schedule(card, grade, now).interval;
+  }
+  return out;
 }

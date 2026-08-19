@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, type Grade, type Stats, type ToeicPreview, type Word } from './api';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react';
+import { api, type Grade, type GradeIntervals, type Stats, type ToeicPreview, type Word } from './api';
+import { isSpeechSupported, onSpeechChange, speak, stopSpeaking } from './speech';
 
 type Tab = 'library' | 'review';
+type SortKey = 'due' | 'newest' | 'az';
+
+const GRADES: Array<{ id: Grade; label: string; shortcut: string }> = [
+  { id: 'again', label: '再來', shortcut: '1' },
+  { id: 'hard', label: '困難', shortcut: '2' },
+  { id: 'good', label: '記得', shortcut: '3' },
+  { id: 'easy', label: '簡單', shortcut: '4' },
+];
 
 const EMPTY_STATS: Stats = {
   total: 0,
@@ -47,11 +56,21 @@ export function App() {
             <p className="tagline">TOEIC 單字間隔複習 · 預設適合約 350 分</p>
           </div>
         </div>
-        <nav className="tabs">
-          <button className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')}>
+        <nav className="tabs" role="tablist" aria-label="主要功能">
+          <button
+            role="tab"
+            aria-selected={tab === 'library'}
+            className={tab === 'library' ? 'active' : ''}
+            onClick={() => setTab('library')}
+          >
             字庫
           </button>
-          <button className={tab === 'review' ? 'active' : ''} onClick={() => setTab('review')}>
+          <button
+            role="tab"
+            aria-selected={tab === 'review'}
+            className={tab === 'review' ? 'active' : ''}
+            onClick={() => setTab('review')}
+          >
             複習{stats.due > 0 ? <span className="badge">{stats.due}</span> : null}
           </button>
         </nav>
@@ -80,7 +99,7 @@ export function App() {
             setNotice={setNotice}
           />
         ) : (
-          <Review stats={stats} onChanged={refresh} onDone={() => setTab('library')} />
+          <Review stats={stats} onChanged={refresh} onDone={() => setTab('library')} setError={setError} />
         )}
       </main>
     </div>
@@ -95,7 +114,7 @@ function StatsBar({ stats }: { stats: Stats }) {
     ['複習次數', stats.reviews],
   ];
   return (
-    <section className="stats">
+    <section className="stats" aria-label="字庫統計">
       {items.map(([label, value]) => (
         <div className="stat" key={label}>
           <span className="stat-value">{value}</span>
@@ -124,10 +143,12 @@ function Library({
   const [example, setExample] = useState('');
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('due');
   const [listRange, setListRange] = useState('all');
   const [listCategory, setListCategory] = useState('all');
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!term.trim() || !definition.trim()) return;
     setBusy(true);
@@ -145,9 +166,16 @@ function Library({
     }
   };
 
-  const remove = async (id: number) => {
-    await api.deleteWord(id);
-    onChanged();
+  const remove = async (word: Word) => {
+    if (!window.confirm(`確定刪除「${word.term}」？此動作無法復原。`)) return;
+    try {
+      await api.deleteWord(word.id);
+      setError(null);
+      if (editingId === word.id) setEditingId(null);
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   const categories = useMemo(
@@ -159,18 +187,27 @@ function Library({
     [words]
   );
 
-  const visible = words.filter((w) => {
-    if (listRange !== 'all' && w.scoreRange !== listRange) return false;
-    if (listCategory !== 'all' && w.category !== listCategory) return false;
-    if (!query.trim()) return true;
+  const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (
-      w.term.toLowerCase().includes(q) ||
-      w.definition.toLowerCase().includes(q) ||
-      w.example.toLowerCase().includes(q) ||
-      w.exampleZh.toLowerCase().includes(q)
-    );
-  });
+    const filtered = words.filter((w) => {
+      if (listRange !== 'all' && w.scoreRange !== listRange) return false;
+      if (listCategory !== 'all' && w.category !== listCategory) return false;
+      if (!q) return true;
+      return (
+        w.term.toLowerCase().includes(q) ||
+        w.definition.toLowerCase().includes(q) ||
+        w.example.toLowerCase().includes(q) ||
+        w.exampleZh.toLowerCase().includes(q)
+      );
+    });
+    filtered.sort((a, b) => {
+      if (sort === 'az') return a.term.localeCompare(b.term);
+      if (sort === 'newest') return b.createdAt - a.createdAt;
+      if (a.dueAt !== b.dueAt) return a.dueAt - b.dueAt;
+      return a.term.localeCompare(b.term);
+    });
+    return filtered;
+  }, [words, query, sort, listRange, listCategory]);
 
   return (
     <div className="library">
@@ -185,23 +222,26 @@ function Library({
             onChange={(e) => setTerm(e.target.value)}
             placeholder="例如 able"
             required
+            autoComplete="off"
           />
         </label>
         <label>
           中文定義
-          <input
+          <textarea
             value={definition}
             onChange={(e) => setDefinition(e.target.value)}
             placeholder="有能力、能夠"
             required
+            rows={2}
           />
         </label>
         <label>
           例句 <span className="muted">（選填）</span>
-          <input
+          <textarea
             value={example}
             onChange={(e) => setExample(e.target.value)}
             placeholder="She is able to finish the report."
+            rows={2}
           />
         </label>
         <button className="primary" type="submit" disabled={busy}>
@@ -216,34 +256,43 @@ function Library({
             {visible.length !== words.length ? ` / ${words.length}` : ''}）
           </h2>
         </div>
-        <div className="library-toolbar">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜尋英文或中文"
-            aria-label="搜尋單字"
-          />
-          <select value={listRange} onChange={(e) => setListRange(e.target.value)} aria-label="分數區間">
-            <option value="all">全部分數</option>
-            {ranges.map((range) => (
-              <option key={range} value={range}>
-                {range}
-              </option>
-            ))}
-          </select>
-          <select
-            value={listCategory}
-            onChange={(e) => setListCategory(e.target.value)}
-            aria-label="主題分類"
-          >
-            <option value="all">全部分類</option>
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-        </div>
+        {words.length > 0 && (
+          <div className="library-toolbar">
+            <input
+              className="search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜尋英文或中文"
+              aria-label="搜尋單字"
+            />
+            <select value={listRange} onChange={(e) => setListRange(e.target.value)} aria-label="分數區間">
+              <option value="all">全部分數</option>
+              {ranges.map((range) => (
+                <option key={range} value={range}>
+                  {range}
+                </option>
+              ))}
+            </select>
+            <select
+              value={listCategory}
+              onChange={(e) => setListCategory(e.target.value)}
+              aria-label="主題分類"
+            >
+              <option value="all">全部分類</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="排序">
+              <option value="due">即將到期</option>
+              <option value="newest">最新</option>
+              <option value="az">A → Z</option>
+            </select>
+          </div>
+        )}
         {words.length === 0 ? (
           <p className="empty">字庫還是空的。請先匯入 350 分入門卡組，或手動加一個字。</p>
         ) : visible.length === 0 ? (
@@ -252,29 +301,117 @@ function Library({
           <ul>
             {visible.map((w) => (
               <li className="card word" key={w.id}>
-                <div className="word-main">
-                  <div className="word-term">{w.term}</div>
-                  <div className="word-def">{w.definition}</div>
-                  {w.example && <div className="word-example">“{w.example}”</div>}
-                  {w.exampleZh && <div className="word-example-zh">{w.exampleZh}</div>}
-                  <div className="word-tags">
-                    {w.starRating > 0 && <span className="pill star">{w.starRating}★</span>}
-                    {w.scoreRange && <span className="pill">{w.scoreRange}</span>}
-                    {w.category && <span className="pill">{w.category}</span>}
-                    <span className="pill">{dueLabel(w.dueAt)}</span>
-                  </div>
-                </div>
-                <div className="word-meta">
-                  <button className="danger" aria-label={`刪除 ${w.term}`} onClick={() => remove(w.id)}>
-                    ✕
-                  </button>
-                </div>
+                {editingId === w.id ? (
+                  <EditWord
+                    word={w}
+                    onCancel={() => setEditingId(null)}
+                    onSaved={() => {
+                      setEditingId(null);
+                      setError(null);
+                      onChanged();
+                    }}
+                    onError={setError}
+                  />
+                ) : (
+                  <>
+                    <div className="word-main">
+                      <div className="word-term-row">
+                        <div className="word-term">{w.term}</div>
+                        <SpeakButton text={w.term} label={`朗讀 ${w.term}`} onError={setError} />
+                      </div>
+                      <div className="word-def">{w.definition}</div>
+                      {w.example && <div className="word-example">“{w.example}”</div>}
+                      {w.exampleZh && <div className="word-example-zh">{w.exampleZh}</div>}
+                      <div className="word-tags">
+                        {w.starRating > 0 && <span className="pill star">{w.starRating}★</span>}
+                        {w.scoreRange && <span className="pill">{w.scoreRange}</span>}
+                        {w.category && <span className="pill">{w.category}</span>}
+                        <span className={`pill${w.dueAt <= Date.now() ? ' due' : ''}`}>{dueLabel(w.dueAt)}</span>
+                      </div>
+                    </div>
+                    <div className="word-meta">
+                      <button className="ghost compact" onClick={() => setEditingId(w.id)}>
+                        編輯
+                      </button>
+                      <button className="danger" aria-label={`刪除 ${w.term}`} onClick={() => remove(w)}>
+                        ✕
+                      </button>
+                    </div>
+                  </>
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
     </div>
+  );
+}
+
+function EditWord({
+  word,
+  onCancel,
+  onSaved,
+  onError,
+}: {
+  word: Word;
+  onCancel: () => void;
+  onSaved: () => void;
+  onError: (m: string | null) => void;
+}) {
+  const [term, setTerm] = useState(word.term);
+  const [definition, setDefinition] = useState(word.definition);
+  const [example, setExample] = useState(word.example);
+  const [exampleZh, setExampleZh] = useState(word.exampleZh);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!term.trim() || !definition.trim()) return;
+    setBusy(true);
+    try {
+      await api.updateWord(word.id, { term, definition, example, exampleZh });
+      onSaved();
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="edit-form" onSubmit={save}>
+      <input value={term} onChange={(e) => setTerm(e.target.value)} aria-label="英文" required />
+      <textarea
+        value={definition}
+        onChange={(e) => setDefinition(e.target.value)}
+        aria-label="中文定義"
+        rows={2}
+        required
+      />
+      <textarea
+        value={example}
+        onChange={(e) => setExample(e.target.value)}
+        aria-label="英文例句"
+        rows={2}
+        placeholder="英文例句（選填）"
+      />
+      <textarea
+        value={exampleZh}
+        onChange={(e) => setExampleZh(e.target.value)}
+        aria-label="中文例句"
+        rows={2}
+        placeholder="中文例句（選填）"
+      />
+      <div className="edit-actions">
+        <button className="primary compact" type="submit" disabled={busy}>
+          {busy ? '儲存中…' : '儲存'}
+        </button>
+        <button className="ghost compact" type="button" onClick={onCancel} disabled={busy}>
+          取消
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -420,35 +557,98 @@ function Review({
   stats,
   onChanged,
   onDone,
+  setError,
 }: {
   stats: Stats;
   onChanged: () => void;
   onDone: () => void;
+  setError: (m: string | null) => void;
 }) {
   const [card, setCard] = useState<Word | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [grading, setGrading] = useState(false);
+  const [sessionReviews, setSessionReviews] = useState(0);
+  const gradingLock = useRef(false);
 
-  const loadNext = useCallback(async () => {
-    setLoading(true);
-    const next = await api.nextReview();
-    setCard(next);
-    setRevealed(false);
-    setLoading(false);
-  }, []);
+  const loadNext = useCallback(
+    async (exclude?: number) => {
+      setLoading(true);
+      try {
+        const next = await api.nextReview(exclude);
+        setCard(next);
+        setRevealed(false);
+        setError(null);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setError]
+  );
 
   useEffect(() => {
     loadNext();
   }, [loadNext]);
 
-  const grade = async (g: Grade) => {
-    if (!card) return;
-    await api.grade(card.id, g);
-    onChanged();
-    await loadNext();
-  };
+  useEffect(() => {
+    stopSpeaking();
+    return () => stopSpeaking();
+  }, [card?.id]);
 
-  if (loading) return <div className="card review-empty">載入中…</div>;
+  const grade = useCallback(
+    async (g: Grade) => {
+      if (!card || gradingLock.current) return;
+      gradingLock.current = true;
+      setGrading(true);
+      try {
+        await api.grade(card.id, g);
+        setSessionReviews((n) => n + 1);
+        setError(null);
+        onChanged();
+        await loadNext(card.id);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        gradingLock.current = false;
+        setGrading(false);
+      }
+    },
+    [card, loadNext, onChanged, setError]
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+        return;
+      }
+      if (!card || loading || grading) return;
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        void speak(e.shiftKey && revealed ? card.definition : card.term).catch((err) => {
+          setError((err as Error).message);
+        });
+        return;
+      }
+      if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
+        e.preventDefault();
+        setRevealed(true);
+        return;
+      }
+      if (!revealed) return;
+      const hit = GRADES.find((item) => item.shortcut === e.key);
+      if (hit) {
+        e.preventDefault();
+        void grade(hit.id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [card, loading, grading, revealed, grade, setError]);
+
+  if (loading && !card) return <div className="card review-empty">載入中…</div>;
 
   if (!card) {
     const capped = stats.newLeft > 0 && stats.introducedToday >= stats.newCardsPerDay;
@@ -457,11 +657,13 @@ function Review({
         <div className="review-emoji" aria-hidden>
           {capped ? '☕' : '🎉'}
         </div>
-        <h2>{capped ? '今天的新字已經學完了' : '目前沒有到期卡片'}</h2>
+        <h2>{capped ? '今天的新字已經學完了' : sessionReviews > 0 ? '這輪複習完成了' : '目前沒有到期卡片'}</h2>
         <p>
-          {capped
-            ? `每日新字上限是 ${stats.newCardsPerDay} 個，字庫還有 ${stats.newLeft} 張明天再學。`
-            : '到期的卡片會依間隔重複排程再出現。'}
+          {sessionReviews > 0
+            ? `這次複習了 ${sessionReviews} 張卡片。`
+            : capped
+              ? `每日新字上限是 ${stats.newCardsPerDay} 個，字庫還有 ${stats.newLeft} 張明天再學。`
+              : '到期的卡片會依間隔重複排程再出現。'}
         </p>
         <button className="primary" onClick={onDone}>
           回到字庫
@@ -470,10 +672,22 @@ function Review({
     );
   }
 
+  const remaining = Math.max(stats.due, 1);
+
   return (
     <div className="review">
+      <div className="session-bar" aria-live="polite">
+        <span>
+          {remaining} 張待複習 · 這次已複習 {sessionReviews} 張
+        </span>
+        <span className="muted shortcut-hint">空白鍵翻面 · P 朗讀 · 1–4 評分</span>
+      </div>
+
       <div className={`flashcard ${revealed ? 'revealed' : ''}`} onClick={() => setRevealed(true)}>
-        <div className="flashcard-term">{card.term}</div>
+        <div className="flashcard-term-row">
+          <div className="flashcard-term">{card.term}</div>
+          <SpeakButton text={card.term} label={`朗讀 ${card.term}`} className="speak-lg" onError={setError} />
+        </div>
         {card.starRating > 0 && (
           <div className="flashcard-meta">
             {card.starRating}★
@@ -483,7 +697,10 @@ function Review({
         )}
         {revealed ? (
           <div className="flashcard-back">
-            <div className="flashcard-def">{card.definition}</div>
+            <div className="flashcard-def-row">
+              <div className="flashcard-def">{card.definition}</div>
+              <SpeakButton text={card.definition} label="朗讀定義" onError={setError} />
+            </div>
             {card.example && <div className="flashcard-example">{card.example}</div>}
             {card.exampleZh && <div className="flashcard-example-zh">{card.exampleZh}</div>}
             {card.examTip && <div className="flashcard-tip">{card.examTip}</div>}
@@ -495,18 +712,18 @@ function Review({
 
       {revealed ? (
         <div className="grades">
-          <button className="grade again" onClick={() => grade('again')}>
-            再來
-          </button>
-          <button className="grade hard" onClick={() => grade('hard')}>
-            困難
-          </button>
-          <button className="grade good" onClick={() => grade('good')}>
-            記得
-          </button>
-          <button className="grade easy" onClick={() => grade('easy')}>
-            簡單
-          </button>
+          {GRADES.map((g) => (
+            <button
+              key={g.id}
+              className={`grade ${g.id}`}
+              onClick={() => grade(g.id)}
+              disabled={grading}
+              title={`${g.label} (${g.shortcut})`}
+            >
+              <span className="grade-label">{g.label}</span>
+              <span className="grade-interval">{intervalLabel(card.nextIntervals, g.id)}</span>
+            </button>
+          ))}
         </div>
       ) : (
         <button className="primary reveal-btn" onClick={() => setRevealed(true)}>
@@ -517,11 +734,65 @@ function Review({
   );
 }
 
+function SpeakButton({
+  text,
+  label,
+  className = '',
+  onError,
+}: {
+  text: string;
+  label: string;
+  className?: string;
+  onError?: (m: string | null) => void;
+}) {
+  const [speaking, setSpeaking] = useState(false);
+  const supported = isSpeechSupported();
+
+  useEffect(() => onSpeechChange((active) => setSpeaking(active === text.trim())), [text]);
+
+  const toggle = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!supported) return;
+    if (speaking) {
+      stopSpeaking();
+      return;
+    }
+    void speak(text).catch((err) => {
+      onError?.((err as Error).message);
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      className={`speak ${speaking ? 'active' : ''} ${className}`.trim()}
+      onClick={toggle}
+      disabled={!supported}
+      aria-label={speaking ? '停止朗讀' : label}
+      title={supported ? (speaking ? '停止' : '播放發音') : '這個瀏覽器不支援語音朗讀'}
+    >
+      {speaking ? '◼' : '🔊'}
+    </button>
+  );
+}
+
 function dueLabel(dueAt: number): string {
   const diff = dueAt - Date.now();
   if (diff <= 0) return '待複習';
+  const minutes = Math.round(diff / (60 * 1000));
+  if (minutes < 60) return minutes <= 1 ? '1 分鐘後' : `${minutes} 分鐘後`;
+  const hours = Math.round(diff / (60 * 60 * 1000));
+  if (hours < 24) return hours === 1 ? '1 小時後' : `${hours} 小時後`;
   const days = Math.round(diff / (24 * 60 * 60 * 1000));
-  if (days <= 0) return '今天';
   if (days === 1) return '1 天後';
   return `${days} 天後`;
+}
+
+function intervalLabel(intervals: GradeIntervals | undefined, grade: Grade): string {
+  const days = intervals?.[grade];
+  if (days == null) return '';
+  if (days <= 0) return '即將';
+  if (days === 1) return '1 天';
+  return `${days} 天`;
 }

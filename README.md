@@ -45,6 +45,11 @@ Express backend, so you only need to visit the web URL. Click **匯入 350 分�
 The first import downloads the Hugging Face catalog and caches it under
 `server/data/toeic_vocabulary.json`.
 
+Pronunciation uses the browser **Web Speech API**: tap 🔊 next to a term (or
+press `P` while reviewing) to hear it. Shift+P reads the definition after the
+card is revealed. Language is guessed from the text (English, Traditional
+Chinese, Japanese, Korean).
+
 ## Scripts
 
 | Command              | Description                             |
@@ -63,12 +68,15 @@ The first import downloads the Hugging Face catalog and caches it under
 | GET    | `/api/stats`        | Deck stats (total / due / learned)   |
 | GET    | `/api/words`        | List all words                       |
 | POST   | `/api/words`        | Add a word `{term, definition, example?}` |
+| PUT    | `/api/words/:id`    | Edit a word `{term?, definition?, example?}` |
 | DELETE | `/api/words/:id`    | Delete a word                        |
-| GET    | `/api/review/next`  | Next due card (or `null`)            |
+| GET    | `/api/review/next`  | Next due card (or `null`). Optional `?exclude=:id` skips a just-graded card when another is due. Review payloads include `nextIntervals` for the Again/Hard/Good/Easy buttons. |
 | POST   | `/api/review/:id`   | Grade a card `{grade}` (again/hard/good/easy) |
 | POST   | `/api/seed`         | Load the sample deck (if empty)      |
 | GET    | `/api/import/toeic/preview` | Count matching TOEIC entries (`scoreRange`, `minStar`, `category`) |
 | POST   | `/api/import/toeic` | Import matching TOEIC cards (skips duplicates) |
+
+Duplicate terms are rejected with `409`. Terms are compared case-insensitively.
 
 ## Development environment (Cursor Cloud Agents)
 

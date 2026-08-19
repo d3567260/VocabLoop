@@ -41,6 +41,7 @@ export function openDb(dbPath) {
       reviews     INTEGER NOT NULL DEFAULT 0,
       created_at  INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_words_due_at ON words(due_at);
   `);
 
   ensureColumn(db, 'example_zh', "TEXT NOT NULL DEFAULT ''");
@@ -111,36 +112,58 @@ export function queueStats(db, now = Date.now(), newCardsPerDay = 15) {
   };
 }
 
-export function nextReviewRow(db, now = Date.now(), newCardsPerDay = 15) {
-  const dueReview = db
-    .prepare(
-      'SELECT * FROM words WHERE due_at <= ? AND reviews > 0 ORDER BY due_at ASC, id ASC LIMIT 1'
-    )
-    .get(now);
+export function nextReviewRow(db, now = Date.now(), newCardsPerDay = 15, excludeId = 0) {
+  const exclude = Number.isInteger(excludeId) && excludeId > 0 ? excludeId : 0;
+  const skip = exclude ? 'AND id != ?' : '';
+
+  const dueReview = exclude
+    ? db
+        .prepare(
+          `SELECT * FROM words WHERE due_at <= ? AND reviews > 0 ${skip} ORDER BY due_at ASC, id ASC LIMIT 1`
+        )
+        .get(now, exclude)
+    : db
+        .prepare(
+          'SELECT * FROM words WHERE due_at <= ? AND reviews > 0 ORDER BY due_at ASC, id ASC LIMIT 1'
+        )
+        .get(now);
   if (dueReview) return dueReview;
 
-  const introduced = db
-    .prepare(
-      `SELECT * FROM words
-        WHERE due_at <= ? AND reviews = 0 AND introduced_at > 0
-        ORDER BY introduced_at ASC, id ASC LIMIT 1`
-    )
-    .get(now);
+  const introduced = exclude
+    ? db
+        .prepare(
+          `SELECT * FROM words
+            WHERE due_at <= ? AND reviews = 0 AND introduced_at > 0 ${skip}
+            ORDER BY introduced_at ASC, id ASC LIMIT 1`
+        )
+        .get(now, exclude)
+    : db
+        .prepare(
+          `SELECT * FROM words
+            WHERE due_at <= ? AND reviews = 0 AND introduced_at > 0
+            ORDER BY introduced_at ASC, id ASC LIMIT 1`
+        )
+        .get(now);
   if (introduced) return introduced;
 
   const { remainingQuota } = queueStats(db, now, newCardsPerDay);
-  if (remainingQuota <= 0) return null;
+  if (remainingQuota <= 0) {
+    return exclude ? nextReviewRow(db, now, newCardsPerDay, 0) : null;
+  }
 
-  const fresh = db
-    .prepare(
-      'SELECT * FROM words WHERE reviews = 0 AND introduced_at = 0 ORDER BY id ASC LIMIT 1'
-    )
-    .get();
-  if (!fresh) return null;
+  const fresh = exclude
+    ? db
+        .prepare(
+          'SELECT * FROM words WHERE reviews = 0 AND introduced_at = 0 AND id != ? ORDER BY id ASC LIMIT 1'
+        )
+        .get(exclude)
+    : db
+        .prepare('SELECT * FROM words WHERE reviews = 0 AND introduced_at = 0 ORDER BY id ASC LIMIT 1')
+        .get();
+  if (!fresh) {
+    return exclude ? nextReviewRow(db, now, newCardsPerDay, 0) : null;
+  }
 
-  db.prepare('UPDATE words SET introduced_at = ? WHERE id = ? AND introduced_at = 0').run(
-    now,
-    fresh.id
-  );
+  db.prepare('UPDATE words SET introduced_at = ? WHERE id = ? AND introduced_at = 0').run(now, fresh.id);
   return db.prepare('SELECT * FROM words WHERE id = ?').get(fresh.id);
 }
