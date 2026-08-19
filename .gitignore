@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+*.tsbuildinfo
+
+# Local SQLite database files (runtime state, not source)
+server/data/*.db
+server/data/*.db-*
+
+.DS_Store
+.env
+.env.local
