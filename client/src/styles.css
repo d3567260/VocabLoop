@@ -314,9 +314,58 @@ button {
   padding: 16px 18px;
 }
 
+.word-term-row,
+.flashcard-term-row,
+.flashcard-def-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.word-term-row {
+  justify-content: flex-start;
+}
+
 .word-term {
   font-size: 18px;
   font-weight: 700;
+}
+
+.speak {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0;
+}
+
+.speak:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(108, 139, 255, 0.12);
+}
+
+.speak.active {
+  background: rgba(108, 139, 255, 0.28);
+  border-color: var(--primary);
+}
+
+.speak:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.speak-lg {
+  width: 42px;
+  height: 42px;
+  font-size: 20px;
+  border-radius: 12px;
 }
 
 .word-def {

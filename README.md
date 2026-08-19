@@ -37,6 +37,11 @@ Open http://localhost:5173. The Vite dev server proxies `/api` requests to the
 Express backend, so you only need to visit the web URL. Click **Load sample
 deck** (or add your own words), then switch to the **Review** tab to study.
 
+Pronunciation uses the browser **Web Speech API**: tap 🔊 next to a term (or
+press `P` while reviewing) to hear it. Shift+P reads the definition after the
+card is revealed. Language is guessed from the text (English, Traditional
+Chinese, Japanese, Korean).
+
 ## Scripts
 
 | Command              | Description                             |

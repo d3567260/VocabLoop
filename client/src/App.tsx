@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { api, type Grade, type GradeIntervals, type Stats, type Word } from './api';
+import { isSpeechSupported, onSpeechChange, speak, stopSpeaking } from './speech';
 
 type Tab = 'library' | 'review';
 type SortKey = 'due' | 'newest' | 'az';
@@ -272,7 +273,10 @@ function Library({
                 ) : (
                   <>
                     <div className="word-main">
-                      <div className="word-term">{w.term}</div>
+                      <div className="word-term-row">
+                        <div className="word-term">{w.term}</div>
+                        <SpeakButton text={w.term} label={`Pronounce ${w.term}`} />
+                      </div>
                       <div className="word-def">{w.definition}</div>
                       {w.example && <div className="word-example">“{w.example}”</div>}
                     </div>
@@ -394,6 +398,11 @@ function Review({
     loadNext();
   }, [loadNext]);
 
+  useEffect(() => {
+    stopSpeaking();
+    return () => stopSpeaking();
+  }, [card?.id]);
+
   const grade = useCallback(
     async (g: Grade) => {
       if (!card || gradingLock.current) return;
@@ -422,6 +431,11 @@ function Review({
         return;
       }
       if (!card || loading || grading) return;
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        void speak(e.shiftKey && revealed ? card.definition : card.term);
+        return;
+      }
       if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
         e.preventDefault();
         setRevealed(true);
@@ -467,26 +481,23 @@ function Review({
         <span>
           {remaining} due · {sessionReviews} reviewed this session
         </span>
-        <span className="muted shortcut-hint">Space to reveal · 1–4 to grade</span>
+        <span className="muted shortcut-hint">Space to reveal · P to play · 1–4 to grade</span>
       </div>
 
       <div
         className={`flashcard ${revealed ? 'revealed' : ''}`}
-        role="button"
-        tabIndex={0}
-        aria-label={revealed ? `Definition of ${card.term}` : `Term ${card.term}. Activate to reveal the definition.`}
         onClick={() => setRevealed(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setRevealed(true);
-          }
-        }}
       >
-        <div className="flashcard-term">{card.term}</div>
+        <div className="flashcard-term-row">
+          <div className="flashcard-term">{card.term}</div>
+          <SpeakButton text={card.term} label={`Pronounce ${card.term}`} className="speak-lg" />
+        </div>
         {revealed ? (
           <div className="flashcard-back">
-            <div className="flashcard-def">{card.definition}</div>
+            <div className="flashcard-def-row">
+              <div className="flashcard-def">{card.definition}</div>
+              <SpeakButton text={card.definition} label="Pronounce definition" />
+            </div>
             {card.example && <div className="flashcard-example">“{card.example}”</div>}
           </div>
         ) : (
@@ -515,6 +526,45 @@ function Review({
         </button>
       )}
     </div>
+  );
+}
+
+function SpeakButton({
+  text,
+  label,
+  className = '',
+}: {
+  text: string;
+  label: string;
+  className?: string;
+}) {
+  const [speaking, setSpeaking] = useState(false);
+  const supported = isSpeechSupported();
+
+  useEffect(() => onSpeechChange((active) => setSpeaking(active === text.trim())), [text]);
+
+  const toggle = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!supported) return;
+    if (speaking) {
+      stopSpeaking();
+      return;
+    }
+    void speak(text);
+  };
+
+  return (
+    <button
+      type="button"
+      className={`speak ${speaking ? 'active' : ''} ${className}`.trim()}
+      onClick={toggle}
+      disabled={!supported}
+      aria-label={speaking ? 'Stop pronunciation' : label}
+      title={supported ? (speaking ? 'Stop' : 'Play pronunciation') : 'Speech is not supported in this browser'}
+    >
+      {speaking ? '◼' : '🔊'}
+    </button>
   );
 }
 
