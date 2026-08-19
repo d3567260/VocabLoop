@@ -275,7 +275,7 @@ function Library({
                     <div className="word-main">
                       <div className="word-term-row">
                         <div className="word-term">{w.term}</div>
-                        <SpeakButton text={w.term} label={`Pronounce ${w.term}`} />
+                        <SpeakButton text={w.term} label={`Pronounce ${w.term}`} onError={setError} />
                       </div>
                       <div className="word-def">{w.definition}</div>
                       {w.example && <div className="word-example">“{w.example}”</div>}
@@ -433,7 +433,9 @@ function Review({
       if (!card || loading || grading) return;
       if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
-        void speak(e.shiftKey && revealed ? card.definition : card.term);
+        void speak(e.shiftKey && revealed ? card.definition : card.term).catch((err) => {
+          setError((err as Error).message);
+        });
         return;
       }
       if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
@@ -450,7 +452,7 @@ function Review({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [card, loading, grading, revealed, grade]);
+  }, [card, loading, grading, revealed, grade, setError]);
 
   if (loading && !card) return <div className="card review-empty">Loading…</div>;
 
@@ -490,13 +492,13 @@ function Review({
       >
         <div className="flashcard-term-row">
           <div className="flashcard-term">{card.term}</div>
-          <SpeakButton text={card.term} label={`Pronounce ${card.term}`} className="speak-lg" />
+          <SpeakButton text={card.term} label={`Pronounce ${card.term}`} className="speak-lg" onError={setError} />
         </div>
         {revealed ? (
           <div className="flashcard-back">
             <div className="flashcard-def-row">
               <div className="flashcard-def">{card.definition}</div>
-              <SpeakButton text={card.definition} label="Pronounce definition" />
+              <SpeakButton text={card.definition} label="Pronounce definition" onError={setError} />
             </div>
             {card.example && <div className="flashcard-example">“{card.example}”</div>}
           </div>
@@ -533,10 +535,12 @@ function SpeakButton({
   text,
   label,
   className = '',
+  onError,
 }: {
   text: string;
   label: string;
   className?: string;
+  onError?: (m: string | null) => void;
 }) {
   const [speaking, setSpeaking] = useState(false);
   const supported = isSpeechSupported();
@@ -551,7 +555,9 @@ function SpeakButton({
       stopSpeaking();
       return;
     }
-    void speak(text);
+    void speak(text).catch((err) => {
+      onError?.((err as Error).message);
+    });
   };
 
   return (

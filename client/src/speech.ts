@@ -30,7 +30,7 @@ function waitForVoices(): Promise<SpeechSynthesisVoice[]> {
   if (existing.length > 0) return Promise.resolve(existing);
   return new Promise((resolve) => {
     const finish = () => resolve(synth.getVoices());
-    const timer = window.setTimeout(finish, 400);
+    const timer = window.setTimeout(finish, 1200);
     synth.addEventListener(
       'voiceschanged',
       () => {
@@ -71,6 +71,9 @@ export async function speak(text: string): Promise<void> {
   window.speechSynthesis.cancel();
   const voices = await waitForVoices();
   if (token !== speakToken) return;
+  if (voices.length === 0) {
+    throw new Error('No speech voices are available in this browser. Try Chrome or Edge on a desktop OS.');
+  }
   const utter = new SpeechSynthesisUtterance(value);
   utter.lang = guessSpeechLang(value);
   utter.rate = 0.92;
