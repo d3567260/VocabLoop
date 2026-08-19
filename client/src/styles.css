@@ -393,15 +393,18 @@ button {
 }
 
 .word-term-row,
+.word-example-row,
 .flashcard-term-row,
-.flashcard-def-row {
+.flashcard-def-row,
+.flashcard-example-row {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
 }
 
-.word-term-row {
+.word-term-row,
+.word-example-row {
   justify-content: flex-start;
 }
 
@@ -451,6 +454,14 @@ button {
   font-style: italic;
   margin-top: 4px;
   font-size: 14px;
+}
+
+.word-example-row {
+  margin-top: 4px;
+}
+
+.word-example-row .word-example {
+  margin-top: 0;
 }
 
 .word-meta {
@@ -567,6 +578,14 @@ button {
   color: var(--muted);
   font-style: italic;
   margin-top: 10px;
+}
+
+.flashcard-example-row {
+  margin-top: 10px;
+}
+
+.flashcard-example-row .flashcard-example {
+  margin-top: 0;
 }
 
 .grades {

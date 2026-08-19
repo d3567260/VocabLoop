@@ -45,10 +45,10 @@ Express backend, so you only need to visit the web URL. Click **匯入 350 分�
 The first import downloads the Hugging Face catalog and caches it under
 `server/data/toeic_vocabulary.json`.
 
-Pronunciation uses the browser **Web Speech API**: tap 🔊 next to a term (or
-press `P` while reviewing) to hear it. Shift+P reads the definition after the
-card is revealed. Language is guessed from the text (English, Traditional
-Chinese, Japanese, Korean).
+Pronunciation uses the browser **Web Speech API**: tap 🔊 next to a term or
+English example (or press `P` / `E` while reviewing) to hear it. Shift+P reads
+the definition after the card is revealed. Language is guessed from the text
+(English, Traditional Chinese, Japanese, Korean).
 
 ## Scripts
 

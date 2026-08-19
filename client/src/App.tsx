@@ -320,7 +320,12 @@ function Library({
                         <SpeakButton text={w.term} label={`朗讀 ${w.term}`} onError={setError} />
                       </div>
                       <div className="word-def">{w.definition}</div>
-                      {w.example && <div className="word-example">“{w.example}”</div>}
+                      {w.example && (
+                        <div className="word-example-row">
+                          <div className="word-example">“{w.example}”</div>
+                          <SpeakButton text={w.example} label={`朗讀例句：${w.example}`} onError={setError} />
+                        </div>
+                      )}
                       {w.exampleZh && <div className="word-example-zh">{w.exampleZh}</div>}
                       <div className="word-tags">
                         {w.starRating > 0 && <span className="pill star">{w.starRating}★</span>}
@@ -632,6 +637,13 @@ function Review({
         });
         return;
       }
+      if ((e.key === 'e' || e.key === 'E') && revealed && card.example) {
+        e.preventDefault();
+        void speak(card.example).catch((err) => {
+          setError((err as Error).message);
+        });
+        return;
+      }
       if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
         e.preventDefault();
         setRevealed(true);
@@ -680,7 +692,7 @@ function Review({
         <span>
           {remaining} 張待複習 · 這次已複習 {sessionReviews} 張
         </span>
-        <span className="muted shortcut-hint">空白鍵翻面 · P 朗讀 · 1–4 評分</span>
+        <span className="muted shortcut-hint">空白鍵翻面 · P 單字 · E 例句 · 1–4 評分</span>
       </div>
 
       <div className={`flashcard ${revealed ? 'revealed' : ''}`} onClick={() => setRevealed(true)}>
@@ -701,7 +713,12 @@ function Review({
               <div className="flashcard-def">{card.definition}</div>
               <SpeakButton text={card.definition} label="朗讀定義" onError={setError} />
             </div>
-            {card.example && <div className="flashcard-example">{card.example}</div>}
+            {card.example && (
+              <div className="flashcard-example-row">
+                <div className="flashcard-example">{card.example}</div>
+                <SpeakButton text={card.example} label="朗讀英文例句" onError={setError} />
+              </div>
+            )}
             {card.exampleZh && <div className="flashcard-example-zh">{card.exampleZh}</div>}
             {card.examTip && <div className="flashcard-tip">{card.examTip}</div>}
           </div>
