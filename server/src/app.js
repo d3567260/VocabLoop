@@ -196,7 +196,9 @@ export function createApp(db = openDb(), options = {}) {
     const catalog = await loadCatalog();
     const parsed = parseFilters(filters);
     const matchedRows = filterCatalog(catalog, parsed);
-    const selected = selectImports(matchedRows, existingTerms(db), parsed.limit);
+    const unique = selectImports(matchedRows, []);
+    const notInDeck = selectImports(matchedRows, existingTerms(db));
+    const selected = parsed.limit != null ? notInDeck.slice(0, parsed.limit) : notInDeck;
     const meta = catalogMeta(catalog);
     return {
       source: 'kknono668/toeic-vocab-tw',
@@ -206,8 +208,9 @@ export function createApp(db = openDb(), options = {}) {
       catalogSize: catalog.length,
       ...meta,
       filters: parsed,
-      matched: matchedRows.length,
-      alreadyImported: matchedRows.length - selectImports(matchedRows, existingTerms(db)).length,
+      matched: unique.length,
+      catalogRows: matchedRows.length,
+      alreadyImported: unique.length - notInDeck.length,
       remaining: selected.length,
     };
   };
@@ -226,6 +229,7 @@ export function createApp(db = openDb(), options = {}) {
       const catalog = await loadCatalog();
       const parsed = parseFilters(req.body ?? {});
       const matchedRows = filterCatalog(catalog, parsed);
+      const unique = selectImports(matchedRows, []);
       const selected = selectImports(matchedRows, existingTerms(db), parsed.limit);
       const now = Date.now();
       const tx = db.transaction((words) => {
@@ -234,8 +238,8 @@ export function createApp(db = openDb(), options = {}) {
       tx(selected);
       res.status(201).json({
         inserted: selected.length,
-        matched: matchedRows.length,
-        skipped: matchedRows.length - selected.length,
+        matched: unique.length,
+        skipped: unique.length - selected.length,
         filters: parsed,
         newCardsPerDay,
       });

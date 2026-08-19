@@ -43,6 +43,8 @@ test('TOEIC preview defaults to the 0-400 five-star beginner deck', async () => 
     assert.equal(res.body.filters.scoreRange, '0-400');
     assert.equal(res.body.filters.minStar, 5);
     assert.equal(res.body.matched, 6);
+    assert.equal(res.body.catalogRows, 7);
+    assert.equal(res.body.alreadyImported, 0);
     assert.equal(res.body.remaining, 6);
     assert.equal(res.body.newCardsPerDay, 2);
   });

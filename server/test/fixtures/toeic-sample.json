@@ -64,6 +64,17 @@
     "exam_tips": ["be able to + 原形動詞。"]
   },
   {
+    "english_word": "able",
+    "chinese_definition": "重複詞條，應被匯入去重",
+    "star_rating": 5,
+    "toeic_score_range": "0-400",
+    "category": "辦公日常",
+    "parts_of_speech": ["adjective"],
+    "word_forms": [],
+    "examples": [],
+    "exam_tips": []
+  },
+  {
     "english_word": "a glass of",
     "chinese_definition": "一杯（裝液體）",
     "star_rating": 5,

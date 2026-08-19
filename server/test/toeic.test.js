@@ -25,7 +25,7 @@ test('parseFilters defaults to the 350-score beginner preset', () => {
 
 test('filterCatalog keeps 0-400 five-star words by default', () => {
   const matched = filterCatalog(catalog, {});
-  assert.equal(matched.length, 6);
+  assert.equal(matched.length, 7);
   assert.ok(matched.every((row) => row.toeic_score_range === '0-400' && row.star_rating >= 5));
 });
 
@@ -33,7 +33,7 @@ test('filterCatalog can widen to all score ranges and a category', () => {
   const office = filterCatalog(catalog, { scoreRange: 'all', minStar: 5, category: '辦公日常' });
   assert.deepEqual(
     office.map((row) => row.english_word).sort(),
-    ['a copy of', 'a number of', 'a sheet of', 'able']
+    ['a copy of', 'a number of', 'a sheet of', 'able', 'able']
   );
 });
 
