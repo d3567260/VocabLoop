@@ -7,6 +7,10 @@ dist/
 server/data/*.db
 server/data/*.db-*
 
+# Cached Hugging Face TOEIC catalog (downloaded on first import)
+server/data/toeic_vocabulary.json
+server/data/*.tmp
+
 .DS_Store
 .env
 .env.local

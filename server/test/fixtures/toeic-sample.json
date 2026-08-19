@@ -1,0 +1,173 @@
+[
+  {
+    "english_word": "a couple of",
+    "chinese_definition": "一對，幾個（指兩個）",
+    "star_rating": 5,
+    "toeic_score_range": "0-400",
+    "category": "溝通互動",
+    "parts_of_speech": ["adjective"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "We need a couple of revisions before the presentation is finalized.",
+        "chinese": "在簡報最終定稿之前，我們需要做一兩次修改。"
+      }
+    ],
+    "exam_tips": ["聽力中 a couple of 常對應數字 2 或 3。"]
+  },
+  {
+    "english_word": "across",
+    "chinese_definition": "橫跨；穿過；在...的另一邊",
+    "star_rating": 5,
+    "toeic_score_range": "0-400",
+    "category": "溝通互動",
+    "parts_of_speech": ["preposition"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "The new bridge will allow employees to walk across the street to the office building.",
+        "chinese": "新的橋樑將允許員工橫過馬路前往辦公大樓。"
+      }
+    ],
+    "exam_tips": ["Across the board 表示全面地。"]
+  },
+  {
+    "english_word": "a sheet of",
+    "chinese_definition": "一張（紙）；一份（文件）",
+    "star_rating": 5,
+    "toeic_score_range": "0-400",
+    "category": "辦公日常",
+    "parts_of_speech": ["noun"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "Could you please hand me a sheet of paper to take notes?",
+        "chinese": "能請你把一張紙傳給我做筆記嗎？"
+      }
+    ],
+    "exam_tips": ["paper 不可數，需用量詞 a sheet of。"]
+  },
+  {
+    "english_word": "able",
+    "chinese_definition": "有能力、能夠；勝任",
+    "star_rating": 5,
+    "toeic_score_range": "0-400",
+    "category": "辦公日常",
+    "parts_of_speech": ["adjective"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "The candidate is able to manage multiple projects simultaneously.",
+        "chinese": "這位候選人能夠同時管理多個專案。"
+      }
+    ],
+    "exam_tips": ["be able to + 原形動詞。"]
+  },
+  {
+    "english_word": "a glass of",
+    "chinese_definition": "一杯（裝液體）",
+    "star_rating": 5,
+    "toeic_score_range": "0-400",
+    "category": "住宿與餐飲",
+    "parts_of_speech": ["noun"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "Could I have a glass of water, please?",
+        "chinese": "請問可以給我一杯水嗎？"
+      }
+    ],
+    "exam_tips": ["冷飲用 a glass of，熱飲多用 a cup of。"]
+  },
+  {
+    "english_word": "across the street",
+    "chinese_definition": "在...的對街；位於...的另一側",
+    "star_rating": 4,
+    "toeic_score_range": "0-400",
+    "category": "旅遊與交通",
+    "parts_of_speech": ["preposition"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "The office building is located across the street from the train station.",
+        "chinese": "辦公大樓位於火車站的對街。"
+      }
+    ],
+    "exam_tips": ["常用來回答 Where 相關的位置問題。"]
+  },
+  {
+    "english_word": "a copy of",
+    "chinese_definition": "一份副本；一份複本（通常指文件或資料）",
+    "star_rating": 5,
+    "toeic_score_range": "400-600",
+    "category": "辦公日常",
+    "parts_of_speech": ["noun phrase"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "Could you please send me a copy of the contract for review?",
+        "chinese": "您能請寄一份合約副本給我審閱嗎？"
+      }
+    ],
+    "exam_tips": ["常與 contract、report、receipt 連用。"]
+  },
+  {
+    "english_word": "a number of",
+    "chinese_definition": "許多；大量（指不確定數量，通常用於表示多個事物）",
+    "star_rating": 5,
+    "toeic_score_range": "400-600",
+    "category": "辦公日常",
+    "parts_of_speech": ["adjective"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "A number of employees have expressed concerns about the new policy.",
+        "chinese": "許多員工對新政策表示擔憂。"
+      }
+    ],
+    "exam_tips": ["a number of 後接複數動詞；the number of 後接單數動詞。"]
+  },
+  {
+    "english_word": "A be followed by B",
+    "chinese_definition": "接著，隨後，緊隨其後",
+    "star_rating": 4,
+    "toeic_score_range": "600-780",
+    "category": "辦公日常",
+    "parts_of_speech": ["verb"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "The meeting will be followed by a networking reception.",
+        "chinese": "會議後將會舉辦一個社交活動。"
+      }
+    ],
+    "exam_tips": ["表示 A 先發生，然後 B 發生。"]
+  },
+  {
+    "english_word": "abate",
+    "chinese_definition": "（風、雨、疼痛等）減弱，緩和",
+    "star_rating": 2,
+    "toeic_score_range": "780-900",
+    "category": "營運管理",
+    "parts_of_speech": ["verb"],
+    "word_forms": [],
+    "examples": [
+      {
+        "english": "The storm is expected to abate by tomorrow morning.",
+        "chinese": "預計明天早上風暴會減弱。"
+      }
+    ],
+    "exam_tips": ["常與 storm、noise、impact 連用。"]
+  },
+  {
+    "english_word": "noexampleword",
+    "chinese_definition": "沒有例句的測試詞",
+    "star_rating": 5,
+    "toeic_score_range": "0-400",
+    "category": "溝通互動",
+    "parts_of_speech": ["noun"],
+    "word_forms": [],
+    "examples": [],
+    "exam_tips": []
+  }
+]

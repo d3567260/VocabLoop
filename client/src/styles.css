@@ -160,12 +160,6 @@ h1 {
   margin-bottom: 24px;
 }
 
-.add-form h2,
-.word-list-head h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
 label {
   display: flex;
   flex-direction: column;
@@ -175,7 +169,8 @@ label {
   font-weight: 600;
 }
 
-input {
+input,
+select {
   background: var(--bg-soft);
   border: 1px solid var(--border);
   color: var(--text);
@@ -186,8 +181,112 @@ input {
   transition: border-color 0.15s;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--primary);
+}
+
+select {
+  cursor: pointer;
+}
+
+a {
+  color: var(--easy);
+}
+
+.notice {
+  background: rgba(70, 196, 138, 0.15);
+  border: 1px solid var(--good);
+  color: #d7ffe9;
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.import-card {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.import-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.import-head h2,
+.add-form h2,
+.word-list-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.import-head .muted {
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.import-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.library-toolbar {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.word-example-zh {
+  color: var(--muted);
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.word-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.pill.star {
+  color: var(--hard);
+  border-color: rgba(240, 180, 41, 0.4);
+}
+
+.flashcard-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flashcard-example-zh {
+  color: var(--text);
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+.flashcard-tip {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
 }
 
 button {
@@ -417,5 +516,11 @@ button {
   }
   .grades {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .import-grid,
+  .library-toolbar,
+  .import-head {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 }
